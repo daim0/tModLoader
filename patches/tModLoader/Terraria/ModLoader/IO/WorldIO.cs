@@ -115,7 +115,7 @@ namespace Terraria.ModLoader.IO
 				if (npc.active && NPCLoader.IsModNPC(npc)) {
 					if (npc.townNPC) {
 						TagCompound tag = new TagCompound {
-							["mod"] = npc.modNPC.mod.Name,
+							["mod"] = npc.modNPC.Mod.Name,
 							["name"] = npc.modNPC.Name,
 							["displayName"] = npc.GivenName,
 							["x"] = npc.position.X,
@@ -128,7 +128,7 @@ namespace Terraria.ModLoader.IO
 					}
 					else if (NPCID.Sets.SavesAndLoads[npc.type]) {
 						TagCompound tag = new TagCompound {
-							["mod"] = npc.modNPC.mod.Name,
+							["mod"] = npc.modNPC.Mod.Name,
 							["name"] = npc.modNPC.Name,
 							["x"] = npc.position.X,
 							["y"] = npc.position.Y
@@ -167,7 +167,7 @@ namespace Terraria.ModLoader.IO
 					}
 				}
 				else {
-					ModContent.GetInstance<MysteryWorld>().mysteryNPCs.Add(tag);
+					ModContent.GetInstance<UnloadedWorld>().unloadedNPCs.Add(tag);
 				}
 			}
 		}
@@ -179,7 +179,7 @@ namespace Terraria.ModLoader.IO
 					continue;
 
 				list.Add(new TagCompound {
-					["mod"] = NPCLoader.GetNPC(type).mod.Name,
+					["mod"] = NPCLoader.GetNPC(type).Mod.Name,
 					["name"] = NPCLoader.GetNPC(type).Name,
 					["count"] = NPC.killCount[type]
 				});
@@ -195,7 +195,7 @@ namespace Terraria.ModLoader.IO
 					NPC.killCount[type] = tag.GetInt("count");
 				}
 				else {
-					ModContent.GetInstance<MysteryWorld>().mysteryKillCounts.Add(tag);
+					ModContent.GetInstance<UnloadedWorld>().unloadedKillCounts.Add(tag);
 				}
 			}
 		}
@@ -208,7 +208,7 @@ namespace Terraria.ModLoader.IO
 			var modItem = ItemLoader.GetItem(type);
 
 			return new TagCompound {
-				["mod"] = modItem.mod.Name,
+				["mod"] = modItem.Mod.Name,
 				["itemName"] = modItem.Name
 			};
 		}
@@ -237,7 +237,7 @@ namespace Terraria.ModLoader.IO
 				if (pair.Item1 >= NPCID.Count) {
 					ModNPC npc = NPCLoader.GetNPC(pair.Item1);
 					TagCompound tag = new TagCompound {
-						["mod"] = npc.mod.Name,
+						["mod"] = npc.Mod.Name,
 						["name"] = npc.Name,
 						["x"] = pair.Item2.X,
 						["y"] = pair.Item2.Y
@@ -271,7 +271,7 @@ namespace Terraria.ModLoader.IO
 					continue;
 
 				list.Add(new TagCompound {
-					["mod"] = modWorld.mod.Name,
+					["mod"] = modWorld.Mod.Name,
 					["name"] = modWorld.Name,
 					["data"] = data
 				});
@@ -294,7 +294,7 @@ namespace Terraria.ModLoader.IO
 					}
 				}
 				else {
-					ModContent.GetInstance<MysteryWorld>().data.Add(tag);
+					ModContent.GetInstance<UnloadedWorld>().data.Add(tag);
 				}
 			}
 		}
@@ -310,7 +310,7 @@ namespace Terraria.ModLoader.IO
 					reader.SafeRead(r => modWorld.NetReceive(r));
 				}
 				catch (IOException) {
-					Logging.tML.Error($"Above IOException error caused by {modWorld.Name} from the {modWorld.mod.Name} mod.");
+					Logging.tML.Error($"Above IOException error caused by {modWorld.Name} from the {modWorld.Mod.Name} mod.");
 				}
 			}
 		}

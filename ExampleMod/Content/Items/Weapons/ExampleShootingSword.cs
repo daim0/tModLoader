@@ -3,7 +3,6 @@ using Microsoft.Xna.Framework;
 using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
-using static Terraria.ModLoader.ModContent;
 
 namespace ExampleMod.Content.Items.Weapons
 {
@@ -19,8 +18,8 @@ namespace ExampleMod.Content.Items.Weapons
 		}
 
 		public override void SetDefaults() {
-			item.width = 40;
-			item.height = 40;
+			item.width = 26;
+			item.height = 42;
 
 			item.useStyle = ItemUseStyleID.Swing;
 			item.useTime = 20;
@@ -38,15 +37,6 @@ namespace ExampleMod.Content.Items.Weapons
 
 			item.shoot = ProjectileID.StarWrath; // ID of the projectiles the sword will shoot
 			item.shootSpeed = 8f; // Speed of the projectiles the sword will shoot
-		}
-
-		public override void AddRecipes() {
-			ModRecipe recipe = new ModRecipe(mod);
-			recipe.AddIngredient(ItemType<ExampleItem>(), 100);
-			recipe.AddIngredient(ItemID.Wood);
-			recipe.AddTile(TileType<ExampleWorkbench>());
-			recipe.SetResult(this);
-			recipe.AddRecipe();
 		}
 
 		public override bool Shoot(Player player, ref Vector2 position, ref float speedX, ref float speedY, ref int type, ref int damage, ref float knockBack) {
@@ -77,6 +67,15 @@ namespace ExampleMod.Content.Items.Weapons
 			}
 
 			return false;
+		}
+
+		//Please see ExampleItem.cs for a detailed explanation of recipe creation.
+		public override void AddRecipes() {
+			CreateRecipe()
+				.AddIngredient<ExampleItem>(100)
+				.AddRecipeGroup(RecipeGroupID.Wood, 10)
+				.AddTile<ExampleWorkbench>()
+				.Register();
 		}
 	}
 }

@@ -1,71 +1,39 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Terraria.ID;
+using Terraria.Localization;
 using Terraria.ModLoader.Exceptions;
 
 namespace Terraria.ModLoader
 {
 	/// <summary>
-	/// This class extends Terraria.Recipe, meaning you can use it in a similar manner to vanilla recipes. However, it provides methods that simplify recipe creation. Recipes are added by creating new instances of ModRecipe, then calling the <para cref="AddRecipe"/> method.
+	/// This class extends Terraria.Recipe, meaning you can use it in a similar manner to vanilla recipes. However, it provides methods that simplify recipe creation. Recipes are added by creating new instances of ModRecipe, then calling the <para cref="Register"/> method.
 	/// </summary>
-	public class ModRecipe : Recipe
+	public sealed class ModRecipe : Recipe
 	{
 		public readonly Mod mod;
+		public readonly List<Condition> Conditions;
+
 		private int numIngredients = 0;
 		private int numTiles = 0;
+		
+		public delegate void OnCraftCallback(ModRecipe recipe, Item item);
+		public delegate int ConsumeItemCallback(ModRecipe recipe, int type, int amount);
+		
+		internal OnCraftCallback OnCraftHooks { get; private set; }
+		internal ConsumeItemCallback ConsumeItemHooks { get; private set; }
 
 		/// <summary>
 		/// The index of the recipe in the Main.recipe array.
 		/// </summary>
-		public int RecipeIndex {
-			get;
-			private set;
-		}
+		public int RecipeIndex { get; private set; }
 
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="mod">The mod the recipe originates from.</param>
-		public ModRecipe(Mod mod) {
+		private ModRecipe(Mod mod) {
 			this.mod = mod;
+
+			Conditions = new List<Condition>();
 		}
-
-		/// <summary>
-		/// Sets the result of this recipe with the given item type and stack size.
-		/// </summary>
-		/// <param name="itemID">The item identifier.</param>
-		/// <param name="stack">The stack.</param>
-		public ModRecipe SetResult(int itemID, int stack = 1) {
-			createItem.SetDefaults(itemID, false);
-			createItem.stack = stack;
-
-			return this;
-		}
-
-		/// <summary>
-		/// Sets the result of this recipe with the given item name from the given mod, and with the given stack stack. If the mod parameter is null, then it will automatically use an item from the mod creating this recipe.
-		/// </summary>
-		/// <param name="mod">The mod the item originates from.</param>
-		/// <param name="itemName">Name of the item.</param>
-		/// <param name="stack">The stack.</param>
-		/// <exception cref="RecipeException">The item " + itemName + " does not exist in mod " + mod.Name + ". If you are trying to use a vanilla item, try removing the first argument.</exception>
-		public ModRecipe SetResult(Mod mod, string itemName, int stack = 1) {
-			if (mod == null)
-				mod = this.mod;
-
-			int type = mod.ItemType(itemName);
-			
-			if (type == 0)
-				throw new RecipeException($"The item {itemName} does not exist in the mod {mod.Name}.\r\nIf you are trying to use a vanilla item, try removing the first argument.");
-
-			return SetResult(type, stack);
-		}
-
-		/// <summary>
-		/// Sets the result of this recipe to the given type of item and stack size. Useful in ModItem.AddRecipes.
-		/// </summary>
-		/// <param name="item">The item.</param>
-		/// <param name="stack">The stack.</param>
-		public ModRecipe SetResult(ModItem item, int stack = 1) => SetResult(item.item.type, stack);
 
 		/// <summary>
 		/// Adds an ingredient to this recipe with the given item type and stack size. Ex: <c>recipe.AddIngredient(ItemID.IronAxe)</c>
@@ -92,8 +60,7 @@ namespace Terraria.ModLoader
 		/// <param name="stack">The stack.</param>
 		/// <exception cref="RecipeException">The item " + itemName + " does not exist in mod " + mod.Name + ". If you are trying to use a vanilla item, try removing the first argument.</exception>
 		public ModRecipe AddIngredient(Mod mod, string itemName, int stack = 1) {
-			if (mod == null)
-				mod = this.mod;
+			mod ??= this.mod;
 			
 			int type = mod.ItemType(itemName);
 
@@ -109,6 +76,14 @@ namespace Terraria.ModLoader
 		/// <param name="item">The item.</param>
 		/// <param name="stack">The stack.</param>
 		public ModRecipe AddIngredient(ModItem item, int stack = 1) => AddIngredient(item.item.type, stack);
+
+		/// <summary>
+		/// Adds an ingredient to this recipe of the given type of item and stack size.
+		/// </summary>
+		/// <param name="item">The item.</param>
+		/// <param name="stack">The stack.</param>
+		public ModRecipe AddIngredient<T>(int stack = 1) where T : ModItem
+			=> AddIngredient(ModContent.ItemType<T>(), stack);
 
 		/// <summary>
 		/// Adds a recipe group ingredient to this recipe with the given RecipeGroup name and stack size. Vanilla recipe groups consist of "Wood", "IronBar", "PresurePlate", "Sand", and "Fragment".
@@ -171,8 +146,7 @@ namespace Terraria.ModLoader
 		/// <param name="tileName">Name of the tile.</param>
 		/// <exception cref="RecipeException">The tile " + tileName + " does not exist in mod " + mod.Name + ". If you are trying to use a vanilla tile, try using ModRecipe.AddTile(tileID).</exception>
 		public ModRecipe AddTile(Mod mod, string tileName) {
-			if (mod == null)
-				mod = this.mod;
+			mod ??= this.mod;
 
 			int type = mod.TileType(tileName);
 			
@@ -189,45 +163,62 @@ namespace Terraria.ModLoader
 		public ModRecipe AddTile(ModTile tile) => AddTile(tile.Type);
 
 		/// <summary>
-		/// Whether or not the conditions are met for this recipe to be available for the player to use. This hook can be used for conditions unrelated to items or tiles (for example, biome or time).
+		/// Adds a required crafting station to this recipe of the given type of tile.
 		/// </summary>
-		/// <returns>Whether or not the conditions are met for this recipe to be available for the player to use.</returns>
-		public virtual bool RecipeAvailable() => true;
+		public ModRecipe AddTile<T>() where T : ModTile
+			=> AddTile(ModContent.TileType<T>());
 
 		/// <summary>
-		/// Allows you to make anything happen when the player uses this recipe. The <paramref name="item"/> parameter is the item the player has just crafted.
+		/// Sets a condition delegate that will determine whether or not the recipe will be to be available for the player to use. The condition can be unrelated to items or tiles (for example, biome or time).
 		/// </summary>
-		/// <param name="item">The item.</param>
-		public virtual void OnCraft(Item item) {
+		/// <param name="condition">The predicate delegate condition.</param>
+		/// <param name="description">A description of this condition. Use NetworkText.FromKey, or NetworkText.FromLiteral for this.</param>
+		public ModRecipe AddCondition(NetworkText description, Predicate<ModRecipe> condition) => AddCondition(new Condition(description, condition));
+
+		/// <summary>
+		/// Adds an array of conditions that will determine whether or not the recipe will be to be available for the player to use. The conditions can be unrelated to items or tiles (for example, biome or time).
+		/// </summary>
+		/// <param name="conditions">An array of conditions.</param>
+		public ModRecipe AddCondition(params Condition[] conditions) => AddCondition((IEnumerable<Condition>)conditions);
+
+		/// <summary>
+		/// Adds a collectiom of conditions that will determine whether or not the recipe will be to be available for the player to use. The conditions can be unrelated to items or tiles (for example, biome or time).
+		/// </summary>
+		/// <param name="conditions">A collection of conditions.</param>
+		public ModRecipe AddCondition(IEnumerable<Condition> conditions) {
+			Conditions.AddRange(conditions);
+
+			return this;
 		}
 
-		//in Terraria.Recipe.Create before alchemy table check add
-		//  ModRecipe modRecipe = this as ModRecipe;
-		//  if(modRecipe != null) { num = modRecipe.ConsumeItem(item.type, item.stack); }		
 		/// <summary>
-		/// Allows you to determine how many of a certain ingredient is consumed when this recipe is used. Return the number of ingredients that will actually be consumed. By default returns numRequired.
+		/// Sets a callback that will allow you to make anything happen when the recipe is used to create an item.
 		/// </summary>
-		/// <param name="type">The type.</param>
-		/// <param name="numRequired">The number required.</param>
-		/// <returns></returns>
-		public virtual int ConsumeItem(int type, int numRequired) => numRequired;
+		public ModRecipe AddOnCraftCallback(OnCraftCallback callback) {
+			OnCraftHooks += callback;
+
+			return this;
+		}
+
+		/// <summary>
+		/// Sets a callback that allows you to determine how many of a certain ingredient is consumed when this recipe is used. Return the number of ingredients that will actually be consumed. By default returns numRequired.
+		/// </summary>
+		public ModRecipe AddConsumeItemCallback(ConsumeItemCallback callback) {
+			ConsumeItemHooks += callback;
+
+			return this;
+		}
 
 		/// <summary>
 		/// Adds this recipe to the game. Call this after you have finished setting the result, ingredients, etc.
 		/// </summary>
 		/// <exception cref="RecipeException">A recipe without any result has been added.</exception>
-		public void AddRecipe() {
+		public void Register() {
 			if (createItem == null || createItem.type == 0)
 				throw new RecipeException("A recipe without any result has been added.");
 			
-			if (numIngredients >= maxRequirements || numTiles >= maxRequirements)
-				throw new RecipeException($"A recipe with either too many tiles or too many ingredients has been added. {maxRequirements} is the max.");
-
-			for (int k = 0; k < maxRequirements; k++) {
-				if (requiredTile[k] == TileID.Bottles) {
-					alchemy = true;
-					break;
-				}
+			if (requiredTile.Contains(TileID.Bottles)) {
+				alchemy = true;
 			}
 
 			if (numRecipes >= maxRecipes) {
@@ -250,6 +241,15 @@ namespace Terraria.ModLoader
 			mod.recipes.Add(this);
 
 			numRecipes++;
+		}
+
+		internal static ModRecipe Create(Mod mod, int result, int amount) {
+			var recipe = new ModRecipe(mod);
+
+			recipe.createItem.SetDefaults(result, false);
+			recipe.createItem.stack = amount;
+
+			return recipe;
 		}
 	}
 }
